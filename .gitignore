@@ -1,2 +1,4 @@
 /target
 /Cargo.lock
+/ncmapi-rs/target
+/ncmapi-rs/Cargo.lock

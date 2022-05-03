@@ -2,13 +2,14 @@
 
 // Copyright (c) 2022 SpringHan
 
-use ncmapi::NcmApi;
+mod api;
 
-#[tokio::main]
-pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let api = NcmApi::default();
-    let res = api.cloud_search("Loser", None).await;
-    let r = res.unwrap().deserialize_to_implict();
-    println!("{:#?}", r);
+use emacs::{defun, Env, Result, Value};
+
+emacs::plugin_is_GPL_compatible!();
+
+#[emacs::module]
+fn init(_: &Env) -> Result<()> {
+    api::init_api();
     Ok(())
 }
