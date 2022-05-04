@@ -4,12 +4,22 @@
 
 mod api;
 
-use emacs::{defun, Env, Result, Value};
+use emacs::{defun, Env, Result, Value, IntoLisp};
 
 emacs::plugin_is_GPL_compatible!();
 
-#[emacs::module]
-fn init(_: &Env) -> Result<()> {
+#[emacs::module(name(fn))]
+fn netease_cloud_music_api(_: &Env) -> Result<()> {
     api::init_api();
     Ok(())
+}
+
+#[defun]
+fn login(env: &Env) -> Result<Value<'_>> {
+    let phone = env.call("read-number", ["name".into_lisp(env)?])?
+        .into_rust()?;
+    let password = env.call("read-password", ["Enter your password: ".into_lisp(env)?])?
+        .into_rust()?;
+
+    env.message(&format!("{:#?} {:#?}", phone, password))
 }

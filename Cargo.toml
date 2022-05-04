@@ -1,5 +1,5 @@
 [package]
-name = "ncm-extension"
+name = "ncm-el-extension"
 version = "0.1.0"
 edition = "2021"
 
@@ -12,7 +12,7 @@ edition = "2021"
 crate-type = ["cdylib"]
 
 [dependencies]
-emacs = "0.13"
+emacs = "0.18.0"
 ncmapi = { path = "./ncmapi-rs/" }
 tokio = { version = "1", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }
