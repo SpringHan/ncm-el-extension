@@ -8,8 +8,8 @@ use emacs::{defun, Env, Result, Value, IntoLisp};
 
 emacs::plugin_is_GPL_compatible!();
 
-#[emacs::module(name(fn))]
-fn netease_cloud_music_api(_: &Env) -> Result<()> {
+#[emacs::module(mod_in_name = false)]
+fn init(_: &Env) -> Result<()> {
     api::init_api();
     Ok(())
 }
@@ -17,9 +17,11 @@ fn netease_cloud_music_api(_: &Env) -> Result<()> {
 #[defun]
 fn login(env: &Env) -> Result<Value<'_>> {
     let phone = env.call("read-number", ["name".into_lisp(env)?])?
-        .into_rust()?;
+        // .into_rust()?
+        ;
     let password = env.call("read-password", ["Enter your password: ".into_lisp(env)?])?
-        .into_rust()?;
+        // .into_rust()?
+        ;
 
     env.message(&format!("{:#?} {:#?}", phone, password))
 }
