@@ -14,14 +14,17 @@ fn init(_: &Env) -> Result<()> {
     Ok(())
 }
 
+// #[defun]
+// fn search_song() -> Type {
+    
+// }
+
 #[defun]
 fn login(env: &Env) -> Result<Value<'_>> {
     let phone = env.call("read-number", ["name".into_lisp(env)?])?
-        // .into_rust()?
-        ;
-    let password = env.call("read-password", ["Enter your password: ".into_lisp(env)?])?
-        // .into_rust()?
-        ;
+        .into_rust::<u16>()?;
+    let password = env.call("read-passwd", ["Enter your password: ".into_lisp(env)?])?
+        .into_rust::<String>()?;
 
-    env.message(&format!("{:#?} {:#?}", phone, password))
+    env.message(&format!("{:#?} {:?}", phone, password))
 }

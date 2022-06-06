@@ -112,33 +112,45 @@ fn get_api<'a>() -> &'a NcmApi {
 
 // Account functions
 /// The function for login
-pub async fn login(phone_number: &str, password: &str) -> Result<(Value, Value), Value> {
+pub async fn login(phone_number: String, password: String) ->
+    Result<(i64, String, String, String, String), Value>
+{
     let api = get_api();
     let result = UserInfo::from_data(
-        api.login_phone(phone_number, password)
-            .await
-            .unwrap()
+        api.login_phone(&phone_number, &password)
+            .await.unwrap()
             .data()
     );
     if result.code == 200 {
-        Ok((result.account, result.profile))
+        let profile = result.profile;
+        Ok((
+            result.account.get("id").unwrap()
+                .as_i64().unwrap(),
+            profile.get("nickname").unwrap()
+                .as_str().unwrap()
+                .to_owned(),
+            phone_number,
+            password,
+            profile.get("avatarUrl").unwrap()
+                .as_str().unwrap()
+                .to_owned()
+        ))
     } else {
         Err(result.msg)
     }
 }
 
-/// Login status
-pub async fn login_status() -> Result<(Value, Value), Value> {
+/// Check if logged
+pub async fn login_status() -> Result<(), ()> {
     let api = get_api();
     let status = UserInfo::from_data(
         api.login_status()
-            .await
-            .unwrap()
+            .await.unwrap()
             .data()
     );
     match status.account {
-        Value::Null => Err(Value::Null),
-        _ => Ok((status.account, status.profile))
+        Value::Null => Err(()),
+        _ => Ok(())
     }
 }
 
@@ -147,8 +159,7 @@ pub async fn logout() -> Result<(), ()> {
     let api = get_api();
     let result = UserInfo::from_data(
         api.logout()
-            .await
-            .unwrap()
+            .await.unwrap()
             .data()
     );
     if result.code == 200 {
@@ -163,8 +174,7 @@ pub async fn create_playlist(name: String, privacy: bool) -> Result<i64, Value> 
     let api = get_api();
     let result = PlaylistInfo::from_data(
         api.create_playlist(name, privacy)
-            .await
-            .unwrap()
+            .await.unwrap()
             .data()
     );
     if result.code == 200 {
@@ -178,8 +188,7 @@ pub async fn create_playlist(name: String, privacy: bool) -> Result<i64, Value> 
 pub async fn delete_playlist(pid: i64) -> Result<(), ()> {
     let api = get_api();
     let result = api.delete_playlist(pid as usize)
-        .await
-        .unwrap()
+        .await.unwrap()
         .deserialize_to_implict();
     if result.code == 200 {
         Ok(())
@@ -190,11 +199,10 @@ pub async fn delete_playlist(pid: i64) -> Result<(), ()> {
 
 // NOTE: Maybe the type of `tracks` will be modified.
 /// Track songs in playlist
-pub async fn track(pid: i64, op: u8, tracks: Vec<usize>) -> Result<(), ()> {
+pub async fn track(pid: i64, op: i64, tracks: Vec<usize>) -> Result<(), ()> {
     let api = get_api();
-    let result = api.playlist_tracks(pid as usize, op, tracks)
-        .await
-        .unwrap()
+    let result = api.playlist_tracks(pid as usize, op as u8, tracks)
+        .await.unwrap()
         .deserialize_to_implict();
     if result.code == 200 {
         Ok(())
@@ -207,8 +215,7 @@ pub async fn track(pid: i64, op: u8, tracks: Vec<usize>) -> Result<(), ()> {
 pub async fn rename_playlist(pid: i64, name: String) -> Result<(), ()> {
     let api = get_api();
     let result = api.update_playlist_name(pid as usize, name)
-        .await
-        .unwrap()
+        .await.unwrap()
         .deserialize_to_implict();
     if result.code == 200 {
         Ok(())
@@ -221,8 +228,7 @@ pub async fn rename_playlist(pid: i64, name: String) -> Result<(), ()> {
 pub async fn update_playlist_order(pid: i64, ids: Vec<usize>) -> Result<(), Value> {
     let api = get_api();
     let result = api.update_playlist_order(pid as usize, ids)
-        .await
-        .unwrap()
+        .await.unwrap()
         .deserialize_to_implict();
     if result.code == 200 {
         Ok(())
@@ -231,31 +237,71 @@ pub async fn update_playlist_order(pid: i64, ids: Vec<usize>) -> Result<(), Valu
     }
 }
 
+/// Extract songs' main info from json data
+fn extract_songs_info(json_data: &Value) ->
+    Result<Vec<(i64, String, String)>, ()>
+{
+    let mut result = Vec::<(i64, String, String)>::new();
+    for i in json_data.as_array().unwrap().iter() {
+        let artist = i.get("ar").unwrap()
+            .as_array().unwrap()
+            .first().unwrap();
+        result.push((
+            i.get("id").unwrap()
+                .as_i64().unwrap(),
+            i.get("name").unwrap()
+                .as_str().unwrap()
+                .to_owned(),
+            artist.get("name").unwrap()
+                .as_str().unwrap()
+                .to_owned()
+        ));
+    }
+
+    Ok(result)
+}
+
 /// Get recommend songs
-pub async fn recommend_songs() -> Result<Value, ()> {
+pub async fn recommend_songs() ->
+    Result<Vec<(i64, String, String)>, ()>
+{
     let api = get_api();
     let songs = api.recommend_songs()
-        .await
-        .unwrap()
+        .await.unwrap()
         .deserialize_to_implict();
     if songs.code == 200 {
-        Ok(songs.data.get("dailySongs").unwrap().to_owned())
+        let songs = songs.data.get("dailySongs").unwrap();
+        Ok(extract_songs_info(songs).unwrap())
     } else {
         Err(())
     }
 }
 
+/// Extract playlists' info from json data
+fn extract_playlists_info(json_data: &Value) -> Result<Vec<(i64, String)>, ()> {
+    let mut result = Vec::<(i64, String)>::new();
+    for i in json_data.as_array().unwrap().iter() {
+        result.push((
+            i.get("id").unwrap().as_i64().unwrap(),
+            i.get("name").unwrap()
+                .as_str().unwrap()
+                .to_owned()
+        ))
+    }
+
+    Ok(result)
+}
+
 /// Get recommend playlists
-pub async fn recommend_playlists() -> Result<Value, ()> {
+pub async fn recommend_playlists() -> Result<Vec<(i64, String)>, ()> {
     let api = get_api();
     let playlists = RecommendPlaylists::from_data(
         api.recommend_resource()
-            .await
-            .unwrap()
+            .await.unwrap()
             .data()
     );
     if playlists.code == 200 {
-        Ok(playlists.recommend)
+        Ok(extract_playlists_info(&playlists.recommend).unwrap())
     } else {
         Err(())
     }
@@ -263,36 +309,47 @@ pub async fn recommend_playlists() -> Result<Value, ()> {
 
 // Fundemantal functions
 /// Search song.
-pub async fn search(content: &str) -> Result<Value, Value> {
+pub async fn search(content: &str, limit: i64, page: i64) ->
+    Result<Vec<(i64, String, String)>, Value>
+{
     let api = get_api();
-    let result = api.cloud_search(content, Some(json!({ "limit": "1" })))
-        .await
-        .unwrap()
+    let result = api.cloud_search(content, Some(json!({ "limit": limit, "offset": page })))
+        .await.unwrap()
         .deserialize_to_implict();
     if result.code == 200 {
         if result.result.get("songCount").unwrap().to_string() == "0" {
             return Err(Value::Null)
         }
 
-        Ok(result.result)
+        Ok(
+            extract_songs_info(
+                result.result.get("songs").unwrap()
+            ).unwrap()
+        )
     } else {
         Err(result.msg)
     }
 }
 
 /// Get user's playlist.
-pub async fn user_playlist(uid: i64) -> Result<(Value, Value), ()> {
+pub async fn user_playlist(uid: i64) ->
+    Result<(Vec<(i64, String)>, Value), ()>
+{
     let api = get_api();
     let result = PlaylistsInfo::from_data(
         api.user_playlist(uid as usize, None)
-            .await
-            .unwrap()
+            .await.unwrap()
             .data()
     );
-    if result.playlist.as_array().unwrap().len() == 0 {
+    let playlists = result.playlist.as_array().unwrap();
+
+    if playlists.len() == 0 {
         Err(())
     } else {
-        Ok((result.more, result.playlist))
+        Ok((
+            extract_playlists_info(&result.playlist).unwrap(),
+            result.more
+        ))
     }
 }
 
@@ -301,22 +358,90 @@ pub async fn get_lyrics(sid: i64) -> Result<(String, String), ()> {
     let api = get_api();
     let lyrics = LyricsInfo::from_data(
         api.lyric(sid as usize)
-            .await
-            .unwrap()
+            .await.unwrap()
             .data());
     match lyrics.lrc {
         Value::Null => Err(()),
         _ => Ok((
-            lyrics.lrc.get("lyric")
-                .unwrap()
-                .as_str()
-                .unwrap()
+            lyrics.lrc.get("lyric").unwrap()
+                .as_str().unwrap()
                 .to_owned(),
-            lyrics.tlyric.get("lyric")
-                .unwrap()
-                .as_str()
-                .unwrap()
+            lyrics.tlyric.get("lyric").unwrap()
+                .as_str().unwrap()
                 .to_owned()
         ))
+    }
+}
+
+#[tokio::main]
+async fn main() {
+    init_api();
+    // let a = search("Lemon", 1, 0).await.unwrap();
+    // println!("{:#?}", a);
+    // let a = get_comment(536622304, 1).await.unwrap();
+    // println!("{:#?}", a);
+    // let a = login(.to_string(), .to_string()).await.unwrap_or_default();
+    // println!("{:#?}", a);
+    // println!("{:#?}", login_status().await.unwrap());
+    // let a = recommend_playlists().await.unwrap();
+    // println!("{:#?}", a);
+    // let b = user_playlist().await.unwrap();
+    // println!("{:#?}", b);
+    // logout().await;
+}
+
+/// Get Comment of current song
+pub async fn get_comment(sid: i64, page_no: i64) ->
+    Result<(Vec<(i64, String, String, String)>, bool), ()>
+{
+    let api = get_api();
+    let result = api.comment(sid as usize, ncmapi::ResourceType::Song, 20, page_no as usize, 1, 0, true)
+        .await
+        .unwrap()
+        .deserialize_to_implict();
+    let (has_more, result) = (
+        result.data.get("hasMore").unwrap()
+            .as_bool().unwrap(),
+        result.data.get("comments").unwrap()
+    );
+    let mut results = Vec::<(i64, String, String, String)>::new();
+
+    for i in result.as_array().unwrap().iter() {
+        let user = i.get("user").unwrap();
+        results.push((
+            i.get("commentId").unwrap()
+                .as_i64().unwrap()
+                .to_owned(),
+            i.get("content").unwrap()
+                .as_str().unwrap()
+                .to_owned(),
+            user.get("nickname").unwrap()
+                .as_str().unwrap()
+                .to_owned(),
+            user.get("avatarUrl").unwrap()
+                .as_str().unwrap()
+                .to_owned()
+        ));
+    }
+    Ok((results, has_more))
+}
+
+/// Create a new comment
+pub async fn create_comment(sid: i64, content: &str, cid: i64) -> Result<(), ()> {
+    let api = get_api();
+    let result = if cid > 0 {
+        api.comment_create(sid as usize, ncmapi::ResourceType::Song, content)
+            .await.unwrap()
+            .deserialize_to_implict()
+    } else {
+        api.comment_re(sid as usize, ncmapi::ResourceType::Song, cid as usize, content)
+            .await.unwrap()
+            .deserialize_to_implict()
+    };
+
+    if result.code == 200 {
+        Ok(())
+    } else {
+        Err(())
     }
 }
