@@ -1,5 +1,6 @@
 use std::{time::Duration, usize};
 
+use rand::RngCore;
 use serde_json::{json, Value};
 use serde_repr::{Deserialize_repr, Serialize_repr};
 
@@ -566,15 +567,15 @@ impl NcmApi {
         self.client.request(r).await
     }
 
-    // /// 更改歌单名称
-    // pub async fn update_playlist_name(&self, pid: usize, name: String) -> TResult<ApiResponse> {
-    //     let r = ApiRequestBuilder::post(API_ROUTE["playlist_name_update"])
-    //         .add_cookie("os", "pc")
-    //         .set_data(json!({"id": pid, "name": name}))
-    //         .build();
+    /// 更改歌单名称
+    pub async fn update_playlist_name(&self, pid: usize, name: String) -> TResult<ApiResponse> {
+        let r = ApiRequestBuilder::post(API_ROUTE["playlist_name_update"])
+            .add_cookie("os", "pc")
+            .set_data(json!({"id": pid, "name": name}))
+            .build();
 
-    //     self.client.request(r).await
-    // }
+        self.client.request(r).await
+    }
 
     /// 更改歌单歌曲顺序
     pub async fn update_playlist_order(&self, pid: usize, ids: Vec<usize>) -> TResult<ApiResponse> {

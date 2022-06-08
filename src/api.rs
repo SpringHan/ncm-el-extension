@@ -156,7 +156,7 @@ pub async fn login(
 /// Check if you've loginned. If that's true, return t. Otherwise return nil.
 #[defun]
 #[tokio::main]
-pub async fn loginp(env: &Env) -> EResult<bool> {
+pub async fn loginp() -> EResult<bool> {
     let api = get_api();
     let status = UserInfo::from_data(api.login_status().await.unwrap().data());
     match status.account {
@@ -171,7 +171,7 @@ pub async fn loginp(env: &Env) -> EResult<bool> {
 #[defun]
 #[tokio::main]
 pub async fn logout(env: &Env) -> EResult<EValue<'_>> {
-    if loginp(env).unwrap() {
+    if loginp().unwrap() {
         let api = get_api();
         let result = UserInfo::from_data(api.logout().await.unwrap().data());
         if result.code == 200 {
@@ -199,9 +199,10 @@ pub async fn create_playlist(name: String, privacy: EValue<'_>) -> EResult<Optio
     }
 }
 
-/// Delete playlist
-// TODO: Wait
-pub async fn delete_playlist(pid: i64) -> Result<(), ()> {
+/// Delete the user's playlist with PID.
+#[defun]
+#[tokio::main]
+pub async fn delete_playlist(pid: i64) -> EResult<bool> {
     let api = get_api();
     let result = api
         .delete_playlist(pid as usize)
@@ -209,21 +210,21 @@ pub async fn delete_playlist(pid: i64) -> Result<(), ()> {
         .unwrap()
         .deserialize_to_implict();
     if result.code == 200 {
-        Ok(())
+        Ok(true)
     } else {
-        Err(())
+        Ok(false)
     }
 }
 
 /// Convert Lisp list into Vec.
 /// The functions only can be used for list which has same atoms.
-fn list_to_vec<'a, T>(list: Value<'a>) -> EResult<Vec<T>>
+fn list_to_vec<'a, T>(list: EValue<'a>) -> EResult<Vec<T>>
 where
     T: FromLisp<'a>,
 {
     let mut result: Vec<T> = Vec::new();
-    for i in 0..list.env.call("length", [list])?.phone::<i64>()? {
-        let element = list.env.call("nth", (i, list))?.phone::<T>()?;
+    for i in 0..list.env.call("length", [list])?.into_rust::<i64>()? {
+        let element = list.env.call("nth", (i, list))?.into_rust::<T>()?;
         result.push(element);
     }
     Ok(result)
@@ -249,53 +250,60 @@ pub async fn track(add: EValue<'_>, pid: i64, tracks: EValue<'_>) -> EResult<boo
     }
 }
 
-// /// Rename playlist
-// pub async fn rename_playlist(pid: i64, name: String) -> Result<(), ()> {
-//     let api = get_api();
-//     let result = api
-//         .update_playlist_name(pid as usize, name)
-//         .await
-//         .unwrap()
-//         .deserialize_to_implict();
-//     if result.code == 200 {
-//         Ok(())
-//     } else {
-//         Err(())
-//     }
-// }
-
-/// Change playlist order
-pub async fn update_playlist_order(pid: i64, ids: Vec<usize>) -> Result<(), JValue> {
+/// Rename playlist
+#[defun]
+#[tokio::main]
+pub async fn rename_playlist(pid: i64, name: String) -> EResult<bool> {
     let api = get_api();
     let result = api
-        .update_playlist_order(pid as usize, ids)
+        .update_playlist_name(pid as usize, name)
         .await
         .unwrap()
         .deserialize_to_implict();
     if result.code == 200 {
-        Ok(())
+        Ok(true)
     } else {
-        Err(result.message)
+        Ok(false)
+    }
+}
+
+/// Update the songs' order in the playlist.
+/// PID is the id of the playlist, SIDS is the list of songs' ids.
+#[defun]
+#[tokio::main]
+pub async fn update_playlist_order(pid: i64, sids: EValue<'_>) -> EResult<bool> {
+    let api = get_api();
+    let result = api
+        .update_playlist_order(pid as usize, list_to_vec(sids)?)
+        .await
+        .unwrap()
+        .deserialize_to_implict();
+    if result.code == 200 {
+        Ok(true)
+    } else {
+        Ok(false)
     }
 }
 
 /// Extract songs' main info from json data
-fn extract_songs_info(json_data: &JValue) -> Result<Vec<(i64, String, String)>, ()> {
-    let mut result = Vec::<(i64, String, String)>::new();
+fn extract_songs_info(env: &Env, json_data: JValue) -> Result<EValue<'_>, ()> {
+    let mut result = Vec::<EValue<'_>>::new();
     for i in json_data.as_array().unwrap().iter() {
         let artist = i.get("ar").unwrap().as_array().unwrap().first().unwrap();
-        result.push((
+        result.push(env.list((
             i.get("id").unwrap().as_i64().unwrap(),
             i.get("name").unwrap().as_str().unwrap().to_owned(),
             artist.get("name").unwrap().as_str().unwrap().to_owned(),
-        ));
+        )).unwrap());
     }
 
-    Ok(result)
+    Ok(env.list(&result.to_vec()).unwrap())
 }
 
 /// Get recommend songs
-pub async fn recommend_songs() -> Result<Vec<(i64, String, String)>, ()> {
+#[defun]
+#[tokio::main]
+pub async fn recommend_songs(env: &Env) -> EResult<EValue<'_>> {
     let api = get_api();
     let songs = api
         .recommend_songs()
@@ -304,47 +312,50 @@ pub async fn recommend_songs() -> Result<Vec<(i64, String, String)>, ()> {
         .deserialize_to_implict();
     if songs.code == 200 {
         let songs = songs.data.get("dailySongs").unwrap();
-        Ok(extract_songs_info(songs).unwrap())
+        Ok(extract_songs_info(env, songs.to_owned()).unwrap())
     } else {
-        Err(())
+        Ok(().into_lisp(env)?)
     }
 }
 
 /// Extract playlists' info from json data
-fn extract_playlists_info(json_data: &JValue) -> Result<Vec<(i64, String)>, ()> {
-    let mut result = Vec::<(i64, String)>::new();
+fn extract_playlists_info(env: &Env, json_data: JValue) -> Result<EValue<'_>, ()> {
+    let mut result = Vec::<EValue<'_>>::new();
     for i in json_data.as_array().unwrap().iter() {
-        result.push((
+        result.push(env.list((
             i.get("id").unwrap().as_i64().unwrap(),
             i.get("name").unwrap().as_str().unwrap().to_owned(),
-        ))
+        )).unwrap())
     }
 
-    Ok(result)
+    Ok(env.list(&result).unwrap())
 }
 
 /// Get recommend playlists
-pub async fn recommend_playlists() -> Result<Vec<(i64, String)>, ()> {
+#[defun]
+#[tokio::main]
+pub async fn recommend_playlists(env: &Env) -> EResult<EValue<'_>> {
     let api = get_api();
     let playlists = RecommendPlaylists::from_data(api.recommend_resource().await.unwrap().data());
     if playlists.code == 200 {
-        Ok(extract_playlists_info(&playlists.recommend).unwrap())
+        Ok(extract_playlists_info(env, playlists.recommend).unwrap())
     } else {
-        Err(())
+        Ok(().into_lisp(env)?)
     }
 }
 
 // Fundemantal functions
 /// Search song
-pub async fn search_song(
-    content: &str,
+pub async fn search_song<'a>(
+    env: &'a Env,
+    content: String,
     limit: i64,
     page: i64,
-) -> Result<Vec<(i64, String, String)>, JValue> {
+) -> EResult<EValue<'a>> {
     let api = get_api();
     let result = api
         .cloud_search(
-            content,
+            &content,
             Some(json!({ "limit": limit, "offset": page - 1  })),
         )
         .await
@@ -352,25 +363,30 @@ pub async fn search_song(
         .deserialize_to_implict();
 
     if result.code == 200 {
-        if result.result.get("songCount").unwrap().to_string() == "0" {
-            return Err(JValue::Null);
+        let result = result.result;
+        if result.get("songCount").unwrap().to_string() == "0" {
+            return Ok(().into_lisp(env)?);
         }
 
-        Ok(extract_songs_info(result.result.get("songs").unwrap()).unwrap())
+        Ok(extract_songs_info(
+            env,
+            result.get("songs").unwrap().to_owned(),
+        ).unwrap())
     } else {
-        Err(result.msg)
+        Ok(().into_lisp(env)?)
     }
 }
 
-pub async fn search_playlist(
-    content: &str,
+pub async fn search_playlist<'a>(
+    env: &'a Env,
+    content: String,
     limit: i64,
     page: i64,
-) -> Result<Vec<(i64, String)>, ()> {
+) -> EResult<EValue<'a>> {
     let api = get_api();
     let playlists = api
         .cloud_search(
-            content,
+            &content,
             Some(json!({ "limit": limit,
                      "offset": page - 1,
                      "type": 1000i16
@@ -384,12 +400,12 @@ pub async fn search_playlist(
         let playlists = playlists.result.get("playlists").unwrap();
 
         if playlists.as_array().unwrap().len() == 0 {
-            Err(())
+            Ok(().into_lisp(env)?)
         } else {
-            Ok(extract_playlists_info(&playlists).unwrap())
+            Ok(extract_playlists_info(env, playlists.to_owned()).unwrap())
         }
     } else {
-        Err(())
+        Ok(().into_lisp(env)?)
     }
 }
 
@@ -400,59 +416,48 @@ pub async fn search_playlist(
 /// PAGE is the current search page.
 #[defun]
 #[tokio::main]
-async fn search<'a>(
+pub async fn search<'a>(
     search_content: String,
     playlistp: EValue<'a>,
     limit: i64,
     page: i64,
-) -> EResult<Value<'a>> {
+) -> EResult<EValue<'a>> {
     let env = playlistp.env;
 
     if playlistp.is_not_nil() {
-        let result = search_playlist(&search_content, limit, page)
-            .await
-            .ok();
+        let result = search_playlist(env, search_content, limit, page).await;
         match result {
-            None => Ok(().into_lisp(env)?),
-            Some(a) => Ok(env.list(
-                &a.into_iter()
-                    .map(|x| env.list([x.0.into_lisp(env)?, x.1.into_lisp(env)?]))
-                    .collect::<EResult<Vec<EValue>>>()?,
-            )?),
+            Err(_) => Ok(().into_lisp(env)?),
+            Ok(a) => Ok(a),
         }
         
     } else {
-        let result = search_song(&search_content, limit, page).await.ok();
+        let result = search_song(env, search_content, limit, page).await;
         match result {
-            None => Ok(().into_lisp(env)?),
-            Some(a) => Ok(env.list(
-                &a.into_iter()
-                    .map(|x| {
-                        env.list([
-                            x.0.into_lisp(env)?,
-                            x.1.into_lisp(env)?,
-                            x.2.into_lisp(env)?,
-                        ])
-                    })
-                    .collect::<EResult<Vec<EValue>>>()?,
-            )?),
+            Err(_) => Ok(().into_lisp(env)?),
+            Ok(a) => Ok(a),
         }
     }
 }
 
-/// Get user's playlist.
-pub async fn user_playlist(uid: i64) -> Result<Vec<(i64, String)>, ()> {
+// TODO: Notice format about the let result ....
+/// Get the playlists of the user whose user id is UID.
+#[defun]
+#[tokio::main]
+pub async fn user_playlist(env: &Env, uid: i64) -> EResult<EValue<'_>> {
     let api = get_api();
-    let result =
-        PlaylistsInfo::from_data(api.user_playlist(uid as usize, None).await.unwrap().data());
+    let result = PlaylistsInfo::from_data(
+        api.user_playlist(uid as usize, None).await.unwrap().data()
+    );
     let playlists = result.playlist.as_array().unwrap();
 
     if playlists.len() == 0 {
-        Err(())
+        Ok(().into_lisp(env)?)
     } else {
         // NOTE: Maybe now I'll not use `more` to know whether there're other results.
         Ok(
-            extract_playlists_info(&result.playlist).unwrap(), // result.more
+            // result.more
+            extract_playlists_info(env, result.playlist).unwrap(),
         )
     }
 }
@@ -506,11 +511,15 @@ pub async fn get_lyrics(env: &Env, sid: i64) -> EResult<EValue<'_>> {
 //     // song_url(10941904111).await;
 // }
 
-/// Get Comment of current song
+/// Get the song's comment by its ID and return it.
+/// Warning: This function doesn't have side-effect.
+#[defun]
+#[tokio::main]
 pub async fn get_comment(
+    env: &Env,
     sid: i64,
     page_no: i64,
-) -> Result<(Vec<(i64, String, String, String)>, bool), ()> {
+) -> EResult<EValue<'_>> {
     let api = get_api();
     let result = api
         .comment(
@@ -525,29 +534,30 @@ pub async fn get_comment(
         .await
         .unwrap()
         .deserialize_to_implict();
-    let (has_more, result) = (
-        result.data.get("hasMore").unwrap().as_bool().unwrap(),
-        result.data.get("comments").unwrap(),
-    );
-    let mut results = Vec::<(i64, String, String, String)>::new();
+    let result = result.data.get("comments").unwrap();
+    let mut results = Vec::<EValue<'_>>::new();
 
     for i in result.as_array().unwrap().iter() {
         let user = i.get("user").unwrap();
-        results.push((
+        results.push(env.list((
             i.get("commentId").unwrap().as_i64().unwrap().to_owned(),
             i.get("content").unwrap().as_str().unwrap().to_owned(),
             user.get("nickname").unwrap().as_str().unwrap().to_owned(),
             user.get("avatarUrl").unwrap().as_str().unwrap().to_owned(),
-        ));
+        ))?);
     }
-    Ok((results, has_more))
+    Ok(env.list(&results)?)
 }
 
-/// Create a new comment
-pub async fn create_comment(sid: i64, content: &str, cid: i64) -> Result<(), ()> {
+/// The function to comment or reply CONTENT to a comment.
+/// SID is the song's id.
+/// When CID is non-nil, means to reply comment with cid(its id).
+#[defun]
+#[tokio::main]
+pub async fn create_comment(sid: i64, content: String, cid: i64) -> EResult<bool> {
     let api = get_api();
     let result = if cid > 0 {
-        api.comment_create(sid as usize, ncmapi::ResourceType::Song, content)
+        api.comment_create(sid as usize, ncmapi::ResourceType::Song, &content)
             .await
             .unwrap()
             .deserialize_to_implict()
@@ -556,7 +566,7 @@ pub async fn create_comment(sid: i64, content: &str, cid: i64) -> Result<(), ()>
             sid as usize,
             ncmapi::ResourceType::Song,
             cid as usize,
-            content,
+            &content,
         )
         .await
         .unwrap()
@@ -564,9 +574,9 @@ pub async fn create_comment(sid: i64, content: &str, cid: i64) -> Result<(), ()>
     };
 
     if result.code == 200 {
-        Ok(())
+        Ok(true)
     } else {
-        Err(())
+        Ok(false)
     }
 }
 
