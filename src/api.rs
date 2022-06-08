@@ -2,13 +2,13 @@
 
 // Copyright (C) 2022 SpringHan
 
+use emacs::Result as EResult;
+use emacs::Value as EValue;
+use emacs::{defun, Env, FromLisp, IntoLisp};
 use ncmapi::NcmApi;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use serde_json::Value as JValue;
-use emacs::{defun, Env, FromLisp, IntoLisp};
-use emacs::Result as EResult;
-use emacs::Value as EValue;
 
 static mut API: Option<NcmApi> = None;
 
@@ -119,11 +119,7 @@ fn get_api<'a>() -> &'a NcmApi {
 /// Login with your PHONE number and PASSWORD.
 #[defun]
 #[tokio::main]
-pub async fn login(
-    env: &Env,
-    phone: i64,
-    password: String,
-) -> EResult<EValue<'_>> {
+pub async fn login(env: &Env, phone: i64, password: String) -> EResult<EValue<'_>> {
     let api = get_api();
     let result = UserInfo::from_data(
         api.login_phone(&phone.to_string(), &password)
@@ -191,7 +187,12 @@ pub async fn logout(env: &Env) -> EResult<EValue<'_>> {
 #[tokio::main]
 pub async fn create_playlist(name: String, privacy: EValue<'_>) -> EResult<Option<i64>> {
     let api = get_api();
-    let result = PlaylistInfo::from_data(api.create_playlist(name, privacy.is_not_nil()).await.unwrap().data());
+    let result = PlaylistInfo::from_data(
+        api.create_playlist(name, privacy.is_not_nil())
+            .await
+            .unwrap()
+            .data(),
+    );
     if result.code == 200 {
         Ok(Some(result.id))
     } else {
@@ -290,11 +291,14 @@ fn extract_songs_info(env: &Env, json_data: JValue) -> Result<EValue<'_>, ()> {
     let mut result = Vec::<EValue<'_>>::new();
     for i in json_data.as_array().unwrap().iter() {
         let artist = i.get("ar").unwrap().as_array().unwrap().first().unwrap();
-        result.push(env.list((
-            i.get("id").unwrap().as_i64().unwrap(),
-            i.get("name").unwrap().as_str().unwrap().to_owned(),
-            artist.get("name").unwrap().as_str().unwrap().to_owned(),
-        )).unwrap());
+        result.push(
+            env.list((
+                i.get("id").unwrap().as_i64().unwrap(),
+                i.get("name").unwrap().as_str().unwrap().to_owned(),
+                artist.get("name").unwrap().as_str().unwrap().to_owned(),
+            ))
+            .unwrap(),
+        );
     }
 
     Ok(env.list(&result.to_vec()).unwrap())
@@ -322,10 +326,13 @@ pub async fn recommend_songs(env: &Env) -> EResult<EValue<'_>> {
 fn extract_playlists_info(env: &Env, json_data: JValue) -> Result<EValue<'_>, ()> {
     let mut result = Vec::<EValue<'_>>::new();
     for i in json_data.as_array().unwrap().iter() {
-        result.push(env.list((
-            i.get("id").unwrap().as_i64().unwrap(),
-            i.get("name").unwrap().as_str().unwrap().to_owned(),
-        )).unwrap())
+        result.push(
+            env.list((
+                i.get("id").unwrap().as_i64().unwrap(),
+                i.get("name").unwrap().as_str().unwrap().to_owned(),
+            ))
+            .unwrap(),
+        )
     }
 
     Ok(env.list(&result).unwrap())
@@ -368,10 +375,7 @@ pub async fn search_song<'a>(
             return Ok(().into_lisp(env)?);
         }
 
-        Ok(extract_songs_info(
-            env,
-            result.get("songs").unwrap().to_owned(),
-        ).unwrap())
+        Ok(extract_songs_info(env, result.get("songs").unwrap().to_owned()).unwrap())
     } else {
         Ok(().into_lisp(env)?)
     }
@@ -430,7 +434,6 @@ pub async fn search<'a>(
             Err(_) => Ok(().into_lisp(env)?),
             Ok(a) => Ok(a),
         }
-        
     } else {
         let result = search_song(env, search_content, limit, page).await;
         match result {
@@ -446,9 +449,8 @@ pub async fn search<'a>(
 #[tokio::main]
 pub async fn user_playlist(env: &Env, uid: i64) -> EResult<EValue<'_>> {
     let api = get_api();
-    let result = PlaylistsInfo::from_data(
-        api.user_playlist(uid as usize, None).await.unwrap().data()
-    );
+    let result =
+        PlaylistsInfo::from_data(api.user_playlist(uid as usize, None).await.unwrap().data());
     let playlists = result.playlist.as_array().unwrap();
 
     if playlists.len() == 0 {
@@ -515,11 +517,7 @@ pub async fn get_lyrics(env: &Env, sid: i64) -> EResult<EValue<'_>> {
 /// Warning: This function doesn't have side-effect.
 #[defun]
 #[tokio::main]
-pub async fn get_comment(
-    env: &Env,
-    sid: i64,
-    page_no: i64,
-) -> EResult<EValue<'_>> {
+pub async fn get_comment(env: &Env, sid: i64, page_no: i64) -> EResult<EValue<'_>> {
     let api = get_api();
     let result = api
         .comment(
