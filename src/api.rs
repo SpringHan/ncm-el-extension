@@ -4,7 +4,11 @@
 
 use ncmapi::NcmApi;
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::json;
+use serde_json::Value as JValue;
+use emacs::{defun, Env, FromLisp, IntoLisp};
+use emacs::Result as EResult;
+use emacs::Value as EValue;
 
 static mut API: Option<NcmApi> = None;
 
@@ -24,13 +28,13 @@ pub struct UserInfo {
     pub code: usize,
 
     #[serde(default)]
-    pub account: Value,
+    pub account: JValue,
 
     #[serde(default)]
-    pub profile: Value,
+    pub profile: JValue,
 
     #[serde(default)]
-    pub msg: Value,
+    pub msg: JValue,
 }
 
 impl SpecialJsonStructure for UserInfo {}
@@ -39,10 +43,10 @@ impl SpecialJsonStructure for UserInfo {}
 #[derive(Serialize, Deserialize, Debug)]
 pub struct PlaylistsInfo {
     #[serde(default)]
-    pub more: Value,
+    pub more: JValue,
 
     #[serde(default)]
-    pub playlist: Value,
+    pub playlist: JValue,
 
     #[serde(default)]
     pub code: usize,
@@ -54,10 +58,10 @@ impl SpecialJsonStructure for PlaylistsInfo {}
 #[derive(Serialize, Deserialize, Debug)]
 pub struct LyricsInfo {
     #[serde(default)]
-    pub lrc: Value,
+    pub lrc: JValue,
 
     #[serde(default)]
-    pub tlyric: Value,
+    pub tlyric: JValue,
 
     #[serde(default)]
     pub code: usize,
@@ -75,7 +79,7 @@ pub struct PlaylistInfo {
     pub id: i64,
 
     #[serde(default)]
-    pub msg: Value,
+    pub msg: JValue,
 }
 
 impl SpecialJsonStructure for PlaylistInfo {}
@@ -87,7 +91,7 @@ pub struct RecommendPlaylists {
     pub code: usize,
 
     #[serde(default)]
-    pub recommend: Value,
+    pub recommend: JValue,
 }
 
 impl SpecialJsonStructure for RecommendPlaylists {}
@@ -112,21 +116,24 @@ fn get_api<'a>() -> &'a NcmApi {
 }
 
 // Account functions
-/// The function for login
+/// Login with your PHONE number and PASSWORD.
+#[defun]
+#[tokio::main]
 pub async fn login(
-    phone_number: String,
+    env: &Env,
+    phone: i64,
     password: String,
-) -> Result<(i64, String, String, String, String), Value> {
+) -> EResult<EValue<'_>> {
     let api = get_api();
     let result = UserInfo::from_data(
-        api.login_phone(&phone_number, &password)
+        api.login_phone(&phone.to_string(), &password)
             .await
             .unwrap()
             .data(),
     );
     if result.code == 200 {
         let profile = result.profile;
-        Ok((
+        Ok(env.list((
             result.account.get("id").unwrap().as_i64().unwrap(),
             profile
                 .get("nickname")
@@ -134,53 +141,66 @@ pub async fn login(
                 .as_str()
                 .unwrap()
                 .to_owned(),
-            phone_number,
-            password,
             profile
                 .get("avatarUrl")
                 .unwrap()
                 .as_str()
                 .unwrap()
                 .to_owned(),
-        ))
+        ))?)
     } else {
-        Err(result.msg)
+        Ok(().into_lisp(env)?)
     }
 }
 
-/// Check if logged
-pub async fn login_status() -> Result<(), ()> {
+/// Check if you've loginned. If that's true, return t. Otherwise return nil.
+#[defun]
+#[tokio::main]
+pub async fn loginp(env: &Env) -> EResult<bool> {
     let api = get_api();
     let status = UserInfo::from_data(api.login_status().await.unwrap().data());
     match status.account {
-        Value::Null => Err(()),
-        _ => Ok(()),
+        JValue::Null => Ok(false),
+        _ => Ok(true),
     }
 }
 
-/// Logout
-pub async fn logout() -> Result<(), ()> {
-    let api = get_api();
-    let result = UserInfo::from_data(api.logout().await.unwrap().data());
-    if result.code == 200 {
-        Ok(())
+/// Logout. If doing it successfully, it'll return t.
+/// If failing, it'll return 0.
+/// If you haven't loginned, return nil.
+#[defun]
+#[tokio::main]
+pub async fn logout(env: &Env) -> EResult<EValue<'_>> {
+    if loginp(env).unwrap() {
+        let api = get_api();
+        let result = UserInfo::from_data(api.logout().await.unwrap().data());
+        if result.code == 200 {
+            Ok(true.into_lisp(env)?)
+        } else {
+            Ok(0i64.into_lisp(env)?)
+        }
     } else {
-        Err(())
+        Ok(().into_lisp(env)?)
     }
 }
 
-/// Create playlist
-pub async fn create_playlist(name: String, privacy: bool) -> Result<i64, Value> {
+/// Create a new playlist named NAME.
+/// If privacy is non-nil, then the playlist will be privacy.
+/// Otherwise it'll be public.
+#[defun]
+#[tokio::main]
+pub async fn create_playlist(name: String, privacy: EValue<'_>) -> EResult<Option<i64>> {
     let api = get_api();
-    let result = PlaylistInfo::from_data(api.create_playlist(name, privacy).await.unwrap().data());
+    let result = PlaylistInfo::from_data(api.create_playlist(name, privacy.is_not_nil()).await.unwrap().data());
     if result.code == 200 {
-        Ok(result.id)
+        Ok(Some(result.id))
     } else {
-        Err(result.msg)
+        Ok(None)
     }
 }
 
 /// Delete playlist
+// TODO: Wait
 pub async fn delete_playlist(pid: i64) -> Result<(), ()> {
     let api = get_api();
     let result = api
@@ -195,39 +215,57 @@ pub async fn delete_playlist(pid: i64) -> Result<(), ()> {
     }
 }
 
+/// Convert Lisp list into Vec.
+/// The functions only can be used for list which has same atoms.
+fn list_to_vec<'a, T>(list: Value<'a>) -> EResult<Vec<T>>
+where
+    T: FromLisp<'a>,
+{
+    let mut result: Vec<T> = Vec::new();
+    for i in 0..list.env.call("length", [list])?.phone::<i64>()? {
+        let element = list.env.call("nth", (i, list))?.phone::<T>()?;
+        result.push(element);
+    }
+    Ok(result)
+}
+
 // NOTE: Maybe the type of `tracks` will be modified.
-/// Track songs in playlist
-pub async fn track(pid: i64, op: i64, tracks: Vec<usize>) -> Result<(), ()> {
+/// Add or delete TRACKS with playlist whose id is PID.
+/// If ADD is non-nil, add songs. Otherwise delete songs.
+#[defun]
+#[tokio::main]
+pub async fn track(add: EValue<'_>, pid: i64, tracks: EValue<'_>) -> EResult<bool> {
+    let op = if add.is_not_nil() { 1 } else { 0 };
     let api = get_api();
     let result = api
-        .playlist_tracks(pid as usize, op as u8, tracks)
+        .playlist_tracks(pid as usize, op as u8, list_to_vec(tracks)?)
         .await
         .unwrap()
         .deserialize_to_implict();
     if result.code == 200 {
-        Ok(())
+        Ok(true)
     } else {
-        Err(())
+        Ok(false)
     }
 }
 
-/// Rename playlist
-pub async fn rename_playlist(pid: i64, name: String) -> Result<(), ()> {
-    let api = get_api();
-    let result = api
-        .update_playlist_name(pid as usize, name)
-        .await
-        .unwrap()
-        .deserialize_to_implict();
-    if result.code == 200 {
-        Ok(())
-    } else {
-        Err(())
-    }
-}
+// /// Rename playlist
+// pub async fn rename_playlist(pid: i64, name: String) -> Result<(), ()> {
+//     let api = get_api();
+//     let result = api
+//         .update_playlist_name(pid as usize, name)
+//         .await
+//         .unwrap()
+//         .deserialize_to_implict();
+//     if result.code == 200 {
+//         Ok(())
+//     } else {
+//         Err(())
+//     }
+// }
 
 /// Change playlist order
-pub async fn update_playlist_order(pid: i64, ids: Vec<usize>) -> Result<(), Value> {
+pub async fn update_playlist_order(pid: i64, ids: Vec<usize>) -> Result<(), JValue> {
     let api = get_api();
     let result = api
         .update_playlist_order(pid as usize, ids)
@@ -242,7 +280,7 @@ pub async fn update_playlist_order(pid: i64, ids: Vec<usize>) -> Result<(), Valu
 }
 
 /// Extract songs' main info from json data
-fn extract_songs_info(json_data: &Value) -> Result<Vec<(i64, String, String)>, ()> {
+fn extract_songs_info(json_data: &JValue) -> Result<Vec<(i64, String, String)>, ()> {
     let mut result = Vec::<(i64, String, String)>::new();
     for i in json_data.as_array().unwrap().iter() {
         let artist = i.get("ar").unwrap().as_array().unwrap().first().unwrap();
@@ -273,7 +311,7 @@ pub async fn recommend_songs() -> Result<Vec<(i64, String, String)>, ()> {
 }
 
 /// Extract playlists' info from json data
-fn extract_playlists_info(json_data: &Value) -> Result<Vec<(i64, String)>, ()> {
+fn extract_playlists_info(json_data: &JValue) -> Result<Vec<(i64, String)>, ()> {
     let mut result = Vec::<(i64, String)>::new();
     for i in json_data.as_array().unwrap().iter() {
         result.push((
@@ -302,7 +340,7 @@ pub async fn search_song(
     content: &str,
     limit: i64,
     page: i64,
-) -> Result<Vec<(i64, String, String)>, Value> {
+) -> Result<Vec<(i64, String, String)>, JValue> {
     let api = get_api();
     let result = api
         .cloud_search(
@@ -315,7 +353,7 @@ pub async fn search_song(
 
     if result.code == 200 {
         if result.result.get("songCount").unwrap().to_string() == "0" {
-            return Err(Value::Null);
+            return Err(JValue::Null);
         }
 
         Ok(extract_songs_info(result.result.get("songs").unwrap()).unwrap())
@@ -355,6 +393,53 @@ pub async fn search_playlist(
     }
 }
 
+/// Search song or playlist.
+/// SEARCH_CONTENT is the content you want to search,
+/// If PLAYLISTP is a number, then search playlist, otherwise it's nil, search song.
+/// LIMIT is the limitation of each search.
+/// PAGE is the current search page.
+#[defun]
+#[tokio::main]
+async fn search<'a>(
+    search_content: String,
+    playlistp: EValue<'a>,
+    limit: i64,
+    page: i64,
+) -> EResult<Value<'a>> {
+    let env = playlistp.env;
+
+    if playlistp.is_not_nil() {
+        let result = search_playlist(&search_content, limit, page)
+            .await
+            .ok();
+        match result {
+            None => Ok(().into_lisp(env)?),
+            Some(a) => Ok(env.list(
+                &a.into_iter()
+                    .map(|x| env.list([x.0.into_lisp(env)?, x.1.into_lisp(env)?]))
+                    .collect::<EResult<Vec<EValue>>>()?,
+            )?),
+        }
+        
+    } else {
+        let result = search_song(&search_content, limit, page).await.ok();
+        match result {
+            None => Ok(().into_lisp(env)?),
+            Some(a) => Ok(env.list(
+                &a.into_iter()
+                    .map(|x| {
+                        env.list([
+                            x.0.into_lisp(env)?,
+                            x.1.into_lisp(env)?,
+                            x.2.into_lisp(env)?,
+                        ])
+                    })
+                    .collect::<EResult<Vec<EValue>>>()?,
+            )?),
+        }
+    }
+}
+
 /// Get user's playlist.
 pub async fn user_playlist(uid: i64) -> Result<Vec<(i64, String)>, ()> {
     let api = get_api();
@@ -372,13 +457,15 @@ pub async fn user_playlist(uid: i64) -> Result<Vec<(i64, String)>, ()> {
     }
 }
 
-/// Get song's lyrics.
-pub async fn get_lyrics(sid: i64) -> Result<(String, String), ()> {
+/// Get lyrics of SID.
+#[defun]
+#[tokio::main]
+pub async fn get_lyrics(env: &Env, sid: i64) -> EResult<EValue<'_>> {
     let api = get_api();
     let lyrics = LyricsInfo::from_data(api.lyric(sid as usize).await.unwrap().data());
     match lyrics.lrc {
-        Value::Null => Err(()),
-        _ => Ok((
+        JValue::Null => Ok(().into_lisp(env)?),
+        _ => Ok(env.list((
             lyrics
                 .lrc
                 .get("lyric")
@@ -393,7 +480,7 @@ pub async fn get_lyrics(sid: i64) -> Result<(String, String), ()> {
                 .as_str()
                 .unwrap()
                 .to_owned(),
-        )),
+        ))?),
     }
 }
 
@@ -414,6 +501,9 @@ pub async fn get_lyrics(sid: i64) -> Result<(String, String), ()> {
 //     // let b = user_playlist().await.unwrap();
 //     // println!("{:#?}", b);
 //     // logout().await;
+//     // let a = song_url(536622304).await.unwrap();
+//     // println!("{}", a);
+//     // song_url(10941904111).await;
 // }
 
 /// Get Comment of current song
@@ -477,5 +567,34 @@ pub async fn create_comment(sid: i64, content: &str, cid: i64) -> Result<(), ()>
         Ok(())
     } else {
         Err(())
+    }
+}
+
+/// Get songs' url with SID.
+#[defun]
+#[tokio::main]
+pub async fn song_url(sid: i64) -> EResult<Option<String>> {
+    let api = get_api();
+    let url = api
+        .song_url(&[sid as usize].to_vec())
+        .await
+        .unwrap()
+        .deserialize_to_implict();
+
+    if url.code != 200 {
+        return Ok(None);
+    }
+
+    let result = url
+        .data
+        .as_array()
+        .unwrap()
+        .first()
+        .unwrap()
+        .get("url")
+        .unwrap();
+    match result {
+        JValue::String(s) => Ok(Some(s.to_string())),
+        _ => Ok(None),
     }
 }

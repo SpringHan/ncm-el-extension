@@ -1,7 +1,5 @@
 use std::{time::Duration, usize};
 
-use openssl::hash::{hash, MessageDigest};
-use rand::{Rng, RngCore};
 use serde_json::{json, Value};
 use serde_repr::{Deserialize_repr, Serialize_repr};
 
@@ -189,20 +187,20 @@ impl NcmApi {
     //     self.client.request(r).await
     // }
 
-    /// 说明: 调用此接口,传入歌曲 id, 可获取音乐是否可用,返回 { success: true, message: 'ok' } 或者 { success: false, message: '亲爱的,暂无版权' }
-    /// requried
-    /// 必选参数 : id : 歌曲 id
-    /// optional
-    /// 可选参数 : br: 码率,默认设置了 999000 即最大码率,如果要 320k 则可设置为 320000,其他类推
-    pub async fn check_music(&self, id: usize, opt: Option<Value>) -> TResult<ApiResponse> {
-        let r = ApiRequestBuilder::post(API_ROUTE["check_music"])
-            .set_data(json!({"br": 999000}))
-            .merge(opt.unwrap_or_default())
-            .merge(json!({ "ids": [id] }))
-            .build();
+    // /// 说明: 调用此接口,传入歌曲 id, 可获取音乐是否可用,返回 { success: true, message: 'ok' } 或者 { success: false, message: '亲爱的,暂无版权' }
+    // /// requried
+    // /// 必选参数 : id : 歌曲 id
+    // /// optional
+    // /// 可选参数 : br: 码率,默认设置了 999000 即最大码率,如果要 320k 则可设置为 320000,其他类推
+    // pub async fn check_music(&self, id: usize, opt: Option<Value>) -> TResult<ApiResponse> {
+    //     let r = ApiRequestBuilder::post(API_ROUTE["check_music"])
+    //         .set_data(json!({"br": 999000}))
+    //         .merge(opt.unwrap_or_default())
+    //         .merge(json!({ "ids": [id] }))
+    //         .build();
 
-        self.client.request(r).await
-    }
+    //     self.client.request(r).await
+    // }
 
     // /// 说明 : 调用此接口 , 传入 type, 资源 id 可获得对应资源热门评论 ( 不需要登录 )
     // /// required
@@ -477,24 +475,24 @@ impl NcmApi {
     //     self.client.request(r).await
     // }
 
-    /// 说明 : 歌单能看到歌单名字, 但看不到具体歌单内容 , 调用此接口 , 传入歌单 id,
-    /// 可以获取对应歌单内的所有的音乐(未登录状态只能获取不完整的歌单,登录后是完整的)，
-    /// 但是返回的trackIds是完整的，tracks 则是不完整的，
-    /// 可拿全部 trackIds 请求一次 song/detail 接口获取所有歌曲的详情
-    ///
-    /// required
-    /// 必选参数 : id : 歌单 id
-    ///
-    /// optional
-    /// 可选参数 : s : 歌单最近的 s 个收藏者,默认为8
-    pub async fn playlist_detail(&self, id: usize, opt: Option<Value>) -> TResult<ApiResponse> {
-        let r = ApiRequestBuilder::post(API_ROUTE["playlist_detail"])
-            .set_data(json!({"n": 100000, "s": 8, "id": id}))
-            .merge(opt.unwrap_or_default())
-            .build();
+    // /// 说明 : 歌单能看到歌单名字, 但看不到具体歌单内容 , 调用此接口 , 传入歌单 id,
+    // /// 可以获取对应歌单内的所有的音乐(未登录状态只能获取不完整的歌单,登录后是完整的)，
+    // /// 但是返回的trackIds是完整的，tracks 则是不完整的，
+    // /// 可拿全部 trackIds 请求一次 song/detail 接口获取所有歌曲的详情
+    // ///
+    // /// required
+    // /// 必选参数 : id : 歌单 id
+    // ///
+    // /// optional
+    // /// 可选参数 : s : 歌单最近的 s 个收藏者,默认为8
+    // pub async fn playlist_detail(&self, id: usize, opt: Option<Value>) -> TResult<ApiResponse> {
+    //     let r = ApiRequestBuilder::post(API_ROUTE["playlist_detail"])
+    //         .set_data(json!({"n": 100000, "s": 8, "id": id}))
+    //         .merge(opt.unwrap_or_default())
+    //         .build();
 
-        self.client.request(r).await
-    }
+    //     self.client.request(r).await
+    // }
 
     /// 说明 : 调用此接口 , 可以添加歌曲到歌单或者从歌单删除某首歌曲 ( 需要登录 )
     ///
@@ -506,7 +504,7 @@ impl NcmApi {
         &self,
         pid: usize,
         op: u8,
-        tracks: Vec<usize>,
+        tracks: Vec<i64>,
     ) -> TResult<ApiResponse> {
         let op = if op == 1 { "add" } else { "del" };
         let r = ApiRequestBuilder::post(API_ROUTE["playlist_tracks"])
@@ -568,15 +566,15 @@ impl NcmApi {
         self.client.request(r).await
     }
 
-    /// 更改歌单名称
-    pub async fn update_playlist_name(&self, pid: usize, name: String) -> TResult<ApiResponse> {
-        let r = ApiRequestBuilder::post(API_ROUTE["playlist_name_update"])
-            .add_cookie("os", "pc")
-            .set_data(json!({"id": pid, "name": name}))
-            .build();
+    // /// 更改歌单名称
+    // pub async fn update_playlist_name(&self, pid: usize, name: String) -> TResult<ApiResponse> {
+    //     let r = ApiRequestBuilder::post(API_ROUTE["playlist_name_update"])
+    //         .add_cookie("os", "pc")
+    //         .set_data(json!({"id": pid, "name": name}))
+    //         .build();
 
-        self.client.request(r).await
-    }
+    //     self.client.request(r).await
+    // }
 
     /// 更改歌单歌曲顺序
     pub async fn update_playlist_order(&self, pid: usize, ids: Vec<usize>) -> TResult<ApiResponse> {
@@ -644,22 +642,22 @@ impl NcmApi {
     //     self.client.request(r).await
     // }
 
-    /// 说明 : 调用此接口,可获取热门搜索列表
-    pub async fn search_hot_detail(&self) -> TResult<ApiResponse> {
-        let r = ApiRequestBuilder::post(API_ROUTE["search_hot_detail"]).build();
+    // /// 说明 : 调用此接口,可获取热门搜索列表
+    // pub async fn search_hot_detail(&self) -> TResult<ApiResponse> {
+    //     let r = ApiRequestBuilder::post(API_ROUTE["search_hot_detail"]).build();
 
-        self.client.request(r).await
-    }
+    //     self.client.request(r).await
+    // }
 
-    /// 说明 : 调用此接口,可获取热门搜索列表(简略)
-    pub async fn search_hot(&self) -> TResult<ApiResponse> {
-        let r = ApiRequestBuilder::post(API_ROUTE["search_hot"])
-            .set_data(json!({"type": 1111}))
-            .set_ua(crate::client::UA::IPhone)
-            .build();
+    // /// 说明 : 调用此接口,可获取热门搜索列表(简略)
+    // pub async fn search_hot(&self) -> TResult<ApiResponse> {
+    //     let r = ApiRequestBuilder::post(API_ROUTE["search_hot"])
+    //         .set_data(json!({"type": 1111}))
+    //         .set_ua(crate::client::UA::IPhone)
+    //         .build();
 
-        self.client.request(r).await
-    }
+    //     self.client.request(r).await
+    // }
 
     // /// 说明 : 调用此接口 , 传入搜索关键词可获得搜索建议 , 搜索结果同时包含单曲 , 歌手 , 歌单 ,mv 信息
     // ///
@@ -730,21 +728,21 @@ impl NcmApi {
     //     self.client.request(r).await
     // }
 
-    /// 说明 : 调用此接口 , 传入音乐 id(支持多个 id, 用 , 隔开), 可获得歌曲详情
-    ///
-    /// requried
-    /// 必选参数 : ids: 音乐 id, 如 ids=347230
-    pub async fn song_detail(&self, ids: &Vec<usize>) -> TResult<ApiResponse> {
-        let list = ids
-            .iter()
-            .map(|id| json!({ "id": id }).to_string())
-            .collect::<Vec<_>>();
-        let r = ApiRequestBuilder::post(API_ROUTE["song_detail"])
-            .set_data(json!({ "c": list }))
-            .build();
+    // /// 说明 : 调用此接口 , 传入音乐 id(支持多个 id, 用 , 隔开), 可获得歌曲详情
+    // ///
+    // /// requried
+    // /// 必选参数 : ids: 音乐 id, 如 ids=347230
+    // pub async fn song_detail(&self, ids: &Vec<usize>) -> TResult<ApiResponse> {
+    //     let list = ids
+    //         .iter()
+    //         .map(|id| json!({ "id": id }).to_string())
+    //         .collect::<Vec<_>>();
+    //     let r = ApiRequestBuilder::post(API_ROUTE["song_detail"])
+    //         .set_data(json!({ "c": list }))
+    //         .build();
 
-        self.client.request(r).await
-    }
+    //     self.client.request(r).await
+    // }
 
     /// 说明 : 使用歌单详情接口后 , 能得到的音乐的 id, 但不能得到的音乐 url, 调用此接口, 传入的音乐 id( 可多个 , 用逗号隔开 ),
     /// 可以获取对应的音乐的 url,未登录状态或者非会员返回试听片段(返回字段包含被截取的正常歌曲的开始时间和结束时间)
@@ -775,11 +773,11 @@ impl NcmApi {
         self.client.request(rb.build()).await
     }
 
-    /// 说明 : 登录后调用此接口 ,可获取用户账号信息
-    pub async fn user_account(&self) -> TResult<ApiResponse> {
-        let r = ApiRequestBuilder::post(API_ROUTE["user_account"]).build();
-        self.client.request(r).await
-    }
+    // /// 说明 : 登录后调用此接口 ,可获取用户账号信息
+    // pub async fn user_account(&self) -> TResult<ApiResponse> {
+    //     let r = ApiRequestBuilder::post(API_ROUTE["user_account"]).build();
+    //     self.client.request(r).await
+    // }
 
     // /// 说明 : 登录后调用此接口 , 传入云盘歌曲 id，可获取云盘数据详情
     // ///
@@ -983,550 +981,3 @@ fn map_resource_code(t: ResourceType) -> String {
         ResourceType::Moment => String::from("A_EV_2_"),
     }
 }
-
-// fn md5_hex(pt: &[u8]) -> String {
-//     hex::encode(hash(MessageDigest::md5(), pt).unwrap())
-// }
-
-const ANONYMOUS_TOKEN: &str = "8aae43f148f990410b9a2af38324af24e87ab9227c9265627ddd10145db744295fcd8701dc45b1ab8985e142f491516295dd965bae848761274a577a62b0fdc54a50284d1e434dcc04ca6d1a52333c9a";
-
-// #[cfg(test)]
-// mod tests {
-//     use serde::Deserialize;
-//     use tokio::fs;
-
-//     use crate::NcmApi;
-
-//     const ALBUM_ID: usize = 34808483;
-//     const SONG_ID: usize = 32977061;
-//     const COLLECTION_ID: usize = 2484967117;
-//     const ARTIST_ID: usize = 5771;
-//     const USER_ID: usize = 49668844;
-
-//     #[derive(Deserialize)]
-//     struct Auth {
-//         phone: String,
-//         password: String,
-//     }
-
-//     #[tokio::test(flavor = "multi_thread")]
-//     async fn test_cloud_search() {
-//         let api = NcmApi::default();
-//         let resp = api.cloud_search("mota", None).await;
-//         assert!(resp.is_ok());
-//         let res = resp.unwrap().deserialize_to_implict();
-//         assert_eq!(res.code, 200);
-//     }
-
-//     #[tokio::test(flavor = "multi_thread")]
-//     async fn test_album_sub() {
-//         let api = NcmApi::default();
-//         let resp = api.album_sub(ALBUM_ID, 1).await;
-//         assert!(resp.is_ok());
-
-//         let res = resp.unwrap().deserialize_to_implict();
-//         assert_eq!(res.code, 200);
-//     }
-
-//     #[tokio::test(flavor = "multi_thread")]
-//     async fn test_album_sublist() {
-//         let api = NcmApi::default();
-//         let resp = api.album_sublist(None).await;
-//         assert!(resp.is_ok());
-
-//         let res = resp.unwrap().deserialize_to_implict();
-//         assert_eq!(res.code, 200);
-//     }
-
-//     #[tokio::test(flavor = "multi_thread")]
-//     async fn test_album() {
-//         let api = NcmApi::default();
-//         let resp = api.album(ALBUM_ID).await;
-//         assert!(resp.is_ok());
-
-//         let res = resp.unwrap().deserialize_to_implict();
-//         assert_eq!(res.code, 200);
-//     }
-
-//     #[tokio::test(flavor = "multi_thread")]
-//     async fn test_artist_songs() {
-//         let api = NcmApi::default();
-//         let resp = api.artist_songs(ARTIST_ID, None).await;
-//         assert!(resp.is_ok());
-
-//         let res = resp.unwrap().deserialize_to_implict();
-//         assert_eq!(res.code, 200);
-//     }
-
-//     #[tokio::test(flavor = "multi_thread")]
-//     async fn test_artist_sub() {
-//         let api = NcmApi::default();
-//         let resp = api.artist_sub(ARTIST_ID, 1).await;
-//         assert!(resp.is_ok());
-
-//         let res = resp.unwrap().deserialize_to_implict();
-//         assert_eq!(res.code, 200);
-//     }
-
-//     #[tokio::test(flavor = "multi_thread")]
-//     async fn test_artist_sublist() {
-//         let api = NcmApi::default();
-//         let resp = api.artist_sublist(None).await;
-//         assert!(resp.is_ok());
-
-//         let res = resp.unwrap().deserialize_to_implict();
-//         assert_eq!(res.code, 200);
-//     }
-
-//     #[tokio::test(flavor = "multi_thread")]
-//     async fn test_artist_top_song() {
-//         let api = NcmApi::default();
-//         let resp = api.artist_top_song(ARTIST_ID).await;
-//         assert!(resp.is_ok());
-
-//         let res = resp.unwrap().deserialize_to_implict();
-//         assert_eq!(res.code, 200);
-//     }
-
-//     #[tokio::test(flavor = "multi_thread")]
-//     async fn test_check_music() {
-//         let api = NcmApi::default();
-//         let resp = api.check_music(SONG_ID, None).await;
-//         assert!(resp.is_ok());
-
-//         let res = resp.unwrap().deserialize_to_implict();
-//         assert_eq!(res.code, 200);
-//     }
-
-//     #[tokio::test(flavor = "multi_thread")]
-//     async fn test_comment_hot() {
-//         let api = NcmApi::default();
-//         let resp = api
-//             .comment_hot(SONG_ID, crate::api::ResourceType::Song, None)
-//             .await;
-//         assert!(resp.is_ok());
-
-//         let res = resp.unwrap().deserialize_to_implict();
-//         assert_eq!(res.code, 200);
-//     }
-
-//     #[tokio::test(flavor = "multi_thread")]
-//     async fn test_comment() {
-//         let api = NcmApi::default();
-//         let resp = api
-//             .comment(SONG_ID, crate::api::ResourceType::Song, 1, 1, 1, 0, true)
-//             .await;
-//         assert!(resp.is_ok());
-
-//         let res = resp.unwrap().deserialize_to_implict();
-//         assert_eq!(res.code, 200);
-//     }
-
-//     #[tokio::test(flavor = "multi_thread")]
-//     async fn test_comment_create() {
-//         let api = NcmApi::default();
-//         let resp = api
-//             .comment_create(SONG_ID, crate::api::ResourceType::Song, "喜欢")
-//             .await;
-//         assert!(resp.is_ok());
-
-//         let res = resp.unwrap().deserialize_to_implict();
-//         assert_eq!(res.code, 200);
-//     }
-
-//     #[tokio::test(flavor = "multi_thread")]
-//     async fn test_comment_re() {}
-
-//     #[tokio::test(flavor = "multi_thread")]
-//     async fn test_comment_del() {}
-
-//     #[tokio::test(flavor = "multi_thread")]
-//     async fn test_daily_signin() {
-//         let api = NcmApi::default();
-//         let resp = api.daily_signin(None).await;
-//         assert!(resp.is_ok());
-
-//         let res = resp.unwrap().deserialize_to_implict();
-//         assert_eq!(res.code, 200);
-//     }
-
-//     #[tokio::test(flavor = "multi_thread")]
-//     async fn test_fm_trash() {
-//         let api = NcmApi::default();
-//         let resp = api.fm_trash(347230).await;
-//         assert!(resp.is_ok());
-
-//         let res = resp.unwrap().deserialize_to_implict();
-//         assert_eq!(res.code, 200);
-//     }
-
-//     #[tokio::test(flavor = "multi_thread")]
-//     async fn test_like() {
-//         let api = NcmApi::default();
-//         let resp = api.like(SONG_ID, None).await;
-//         assert!(resp.is_ok());
-
-//         let res = resp.unwrap().deserialize_to_implict();
-//         assert_eq!(res.code, 200);
-//     }
-
-//     #[tokio::test(flavor = "multi_thread")]
-//     async fn test_likelist() {
-//         let api = NcmApi::default();
-//         let resp = api.likelist(USER_ID).await;
-//         assert!(resp.is_ok());
-
-//         let res = resp.unwrap().deserialize_to_implict();
-//         assert_eq!(res.code, 200);
-//     }
-
-//     #[tokio::test(flavor = "multi_thread")]
-//     async fn test_login_phone() {
-//         let f = fs::read_to_string("test-data/auth.json")
-//             .await
-//             .expect("no auth file");
-//         let auth: Auth = serde_json::from_str(&f).unwrap();
-
-//         let api = NcmApi::default();
-//         let resp = api.login_phone(&auth.phone, &auth.password).await;
-//         assert!(resp.is_ok());
-
-//         let res = resp.unwrap().deserialize_to_implict();
-//         assert_eq!(res.code, 200);
-//     }
-
-//     #[tokio::test(flavor = "multi_thread")]
-//     async fn test_login_refresh() {
-//         let api = NcmApi::default();
-//         let resp = api.login_refresh().await;
-//         assert!(resp.is_ok());
-
-//         let res = resp.unwrap().deserialize_to_implict();
-//         assert_eq!(res.code, 200);
-//     }
-
-//     #[tokio::test(flavor = "multi_thread")]
-//     async fn test_login_status() {
-//         let api = NcmApi::default();
-//         let resp = api.login_status().await;
-//         assert!(resp.is_ok());
-
-//         let res = resp.unwrap();
-//         let res = res.deserialize_to_implict();
-//         assert_eq!(res.code, 200);
-//     }
-
-//     #[tokio::test(flavor = "multi_thread")]
-//     async fn test_logout() {
-//         let api = NcmApi::default();
-//         let resp = api.logout().await;
-//         assert!(resp.is_ok());
-
-//         let res = resp.unwrap();
-//         let res = res.deserialize_to_implict();
-//         assert_eq!(res.code, 200);
-//     }
-
-//     #[tokio::test(flavor = "multi_thread")]
-//     async fn test_lyric() {
-//         let api = NcmApi::default();
-//         let resp = api.lyric(SONG_ID).await;
-//         assert!(resp.is_ok());
-
-//         let res = resp.unwrap();
-//         let res = res.deserialize_to_implict();
-//         assert_eq!(res.code, 200);
-//     }
-
-//     #[tokio::test(flavor = "multi_thread")]
-//     async fn test_personal_fm() {
-//         let api = NcmApi::default();
-//         let resp = api.personal_fm().await;
-//         assert!(resp.is_ok());
-
-//         let res = resp.unwrap();
-//         let res = res.deserialize_to_implict();
-//         assert_eq!(res.code, 200);
-//     }
-
-//     #[tokio::test(flavor = "multi_thread")]
-//     async fn test_playlist_detail() {
-//         let api = NcmApi::default();
-//         let resp = api.playlist_detail(COLLECTION_ID, None).await;
-//         assert!(resp.is_ok());
-
-//         let res = resp.unwrap();
-//         let res = res.deserialize_to_implict();
-//         assert_eq!(res.code, 200);
-//     }
-
-//     #[tokio::test(flavor = "multi_thread")]
-//     async fn test_playlist_tracks() {}
-
-//     #[tokio::test(flavor = "multi_thread")]
-//     async fn test_playlist_update() {}
-
-//     #[tokio::test(flavor = "multi_thread")]
-//     async fn test_recommend_resource() {
-//         let api = NcmApi::default();
-//         let resp = api.recommend_resource().await;
-//         assert!(resp.is_ok());
-
-//         let res = resp.unwrap();
-//         let res = res.deserialize_to_implict();
-//         assert_eq!(res.code, 200);
-//     }
-
-//     #[tokio::test(flavor = "multi_thread")]
-//     async fn test_recommend_songs() {
-//         let api = NcmApi::default();
-//         let resp = api.recommend_songs().await;
-//         assert!(resp.is_ok());
-
-//         let res = resp.unwrap();
-//         let res = res.deserialize_to_implict();
-//         assert_eq!(res.code, 200);
-//     }
-
-//     #[tokio::test(flavor = "multi_thread")]
-//     async fn test_scrobble() {
-//         let api = NcmApi::default();
-//         let resp = api.scrobble(29106885, COLLECTION_ID).await;
-//         assert!(resp.is_ok());
-
-//         let res = resp.unwrap();
-//         let res = res.deserialize_to_implict();
-//         assert_eq!(res.code, 200);
-//     }
-
-//     #[tokio::test(flavor = "multi_thread")]
-//     async fn test_search_default() {
-//         let api = NcmApi::default();
-//         let resp = api.search_default().await;
-//         assert!(resp.is_ok());
-
-//         let res = resp.unwrap();
-//         let res = res.deserialize_to_implict();
-//         assert_eq!(res.code, 200);
-//     }
-
-//     #[tokio::test(flavor = "multi_thread")]
-//     async fn test_search_hot_detail() {
-//         let api = NcmApi::default();
-//         let resp = api.search_hot_detail().await;
-//         assert!(resp.is_ok());
-
-//         let res = resp.unwrap();
-//         let res = res.deserialize_to_implict();
-//         assert_eq!(res.code, 200);
-//     }
-
-//     #[tokio::test(flavor = "multi_thread")]
-//     async fn test_search_hot() {
-//         let api = NcmApi::default();
-//         let resp = api.search_hot().await;
-//         assert!(resp.is_ok());
-
-//         let res = resp.unwrap();
-//         let res = res.deserialize_to_implict();
-//         assert_eq!(res.code, 200);
-//     }
-
-//     #[tokio::test(flavor = "multi_thread")]
-//     async fn test_search_suggest() {
-//         let api = NcmApi::default();
-//         let resp = api.search_suggest("mota", None).await;
-//         assert!(resp.is_ok());
-
-//         let res = resp.unwrap();
-//         let res = res.deserialize_to_implict();
-//         assert_eq!(res.code, 200);
-//     }
-
-//     #[tokio::test(flavor = "multi_thread")]
-//     async fn test_simi_artist() {
-//         let api = NcmApi::default();
-//         let resp = api.simi_artist(ARTIST_ID).await;
-//         assert!(resp.is_ok());
-
-//         let res = resp.unwrap();
-//         let res = res.deserialize_to_implict();
-//         assert_eq!(res.code, 200);
-//     }
-
-//     #[tokio::test(flavor = "multi_thread")]
-//     async fn test_simi_playlist() {
-//         let api = NcmApi::default();
-//         let resp = api.simi_playlist(SONG_ID, None).await;
-//         assert!(resp.is_ok());
-
-//         let res = resp.unwrap();
-//         let res = res.deserialize_to_implict();
-//         assert_eq!(res.code, 200);
-//     }
-
-//     #[tokio::test(flavor = "multi_thread")]
-//     async fn test_simi_song() {
-//         let api = NcmApi::default();
-//         let resp = api.simi_song(SONG_ID, None).await;
-//         assert!(resp.is_ok());
-
-//         let res = resp.unwrap();
-//         let res = res.deserialize_to_implict();
-//         assert_eq!(res.code, 200);
-//     }
-
-//     #[tokio::test(flavor = "multi_thread")]
-//     async fn test_song_detail() {
-//         let api = NcmApi::default();
-//         let resp = api.song_detail(&vec![SONG_ID]).await;
-//         assert!(resp.is_ok());
-
-//         let res = resp.unwrap();
-//         let res = res.deserialize_to_implict();
-//         assert_eq!(res.code, 200);
-//     }
-
-//     #[tokio::test(flavor = "multi_thread")]
-//     async fn test_song_url() {
-//         let api = NcmApi::default();
-//         let resp = api.song_url(&vec![SONG_ID]).await;
-//         assert!(resp.is_ok());
-
-//         let res = resp.unwrap();
-//         let res = res.deserialize_to_implict();
-//         assert_eq!(res.code, 200);
-//     }
-
-//     #[tokio::test(flavor = "multi_thread")]
-//     async fn test_user_account() {
-//         let api = NcmApi::default();
-//         let resp = api.user_account().await;
-//         assert!(resp.is_ok());
-
-//         let res = resp.unwrap();
-//         let res = res.deserialize_to_implict();
-//         assert_eq!(res.code, 200);
-//     }
-
-//     #[tokio::test(flavor = "multi_thread")]
-//     async fn test_user_cloud_detail() {
-//         // let api = NcmApi::default();
-//         // let resp = api.user_cloud_detail().await;
-//         // assert!(resp.is_ok());
-
-//         // let res = resp.unwrap();
-//         // let res = res.deserialize_to_implict();
-//         // assert_eq!(res.code, 200);
-//     }
-
-//     #[tokio::test(flavor = "multi_thread")]
-//     async fn test_user_cloud() {
-//         let api = NcmApi::default();
-//         let resp = api.user_cloud(None).await;
-//         assert!(resp.is_ok());
-
-//         let res = resp.unwrap();
-//         let res = res.deserialize_to_implict();
-//         assert_eq!(res.code, 200);
-//     }
-
-//     #[tokio::test(flavor = "multi_thread")]
-//     async fn test_user_comment_history() {
-//         let api = NcmApi::default();
-//         let resp = api.user_comment_history(USER_ID, None).await;
-//         assert!(resp.is_ok());
-
-//         let res = resp.unwrap();
-//         let res = res.deserialize_to_implict();
-//         assert_eq!(res.code, 200);
-//     }
-
-//     #[tokio::test(flavor = "multi_thread")]
-//     async fn test_user_detail() {
-//         let api = NcmApi::default();
-//         let resp = api.user_detail(USER_ID).await;
-//         assert!(resp.is_ok());
-
-//         let res = resp.unwrap();
-//         let res = res.deserialize_to_implict();
-//         assert_eq!(res.code, 200);
-//     }
-
-//     #[tokio::test(flavor = "multi_thread")]
-//     async fn test_user_dj() {
-//         let api = NcmApi::default();
-//         let resp = api.user_dj(USER_ID, None).await;
-//         assert!(resp.is_ok());
-
-//         let res = resp.unwrap();
-//         let res = res.deserialize_to_implict();
-//         assert_eq!(res.code, 200);
-//     }
-
-//     #[tokio::test(flavor = "multi_thread")]
-//     async fn test_user_podcast() {
-//         let api = NcmApi::default();
-//         let resp = api.user_podcast(USER_ID).await;
-//         assert!(resp.is_ok());
-
-//         let res = resp.unwrap();
-//         let res = res.deserialize_to_implict();
-//         assert_eq!(res.code, 200);
-//     }
-
-//     #[tokio::test(flavor = "multi_thread")]
-//     async fn test_podcast_audio() {
-//         let api = NcmApi::default();
-//         let resp = api.podcast_audio(965114264, None).await;
-//         assert!(resp.is_ok());
-
-//         let res = resp.unwrap();
-//         let res = res.deserialize_to_implict();
-//         assert_eq!(res.code, 200);
-//     }
-
-//     #[tokio::test(flavor = "multi_thread")]
-//     async fn test_user_level() {
-//         let api = NcmApi::default();
-//         let resp = api.user_level().await;
-//         assert!(resp.is_ok());
-
-//         let res = resp.unwrap();
-//         let res = res.deserialize_to_implict();
-//         assert_eq!(res.code, 200);
-//     }
-
-//     #[tokio::test(flavor = "multi_thread")]
-//     async fn test_user_playlist() {
-//         let api = NcmApi::default();
-//         let resp = api.user_playlist(USER_ID, None).await;
-//         assert!(resp.is_ok());
-
-//         let res = resp.unwrap();
-//         let res = res.deserialize_to_implict();
-//         assert_eq!(res.code, 200);
-//     }
-
-//     #[tokio::test(flavor = "multi_thread")]
-//     async fn test_user_record() {
-//         let api = NcmApi::default();
-//         let resp = api.user_record(USER_ID, None).await;
-//         assert!(resp.is_ok());
-
-//         let res = resp.unwrap();
-//         let res = res.deserialize_to_implict();
-//         assert_eq!(res.code, 200);
-//     }
-
-//     #[tokio::test(flavor = "multi_thread")]
-//     async fn test_user_subcount() {
-//         let api = NcmApi::default();
-//         let resp = api.user_subcount().await;
-//         assert!(resp.is_ok());
-
-//         let res = resp.unwrap();
-//         let res = res.deserialize_to_implict();
-//         assert_eq!(res.code, 200);
-//     }
-// }
