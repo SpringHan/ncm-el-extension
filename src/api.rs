@@ -149,34 +149,45 @@ pub async fn login(env: &Env, phone: i64, password: String) -> EResult<EValue<'_
     }
 }
 
+/// Whether the user have logged.
+async fn have_logged() -> bool {
+    let api = get_api();
+    let status = UserInfo::from_data(api.login_status().await.unwrap().data());
+    match status.account {
+        JValue::Null => false,
+        _ => true,
+    }
+}
+
 /// Check if you've loginned. If that's true, return t. Otherwise return nil.
 #[defun]
 #[tokio::main]
 pub async fn loginp() -> EResult<bool> {
-    let api = get_api();
-    let status = UserInfo::from_data(api.login_status().await.unwrap().data());
-    match status.account {
-        JValue::Null => Ok(false),
-        _ => Ok(true),
+    let result = have_logged().await;
+    if result {
+        Ok(true)
+    } else {
+        Ok(false)
     }
 }
 
+// BUG: Maybe it's casued by cache.
 /// Logout. If doing it successfully, it'll return t.
 /// If failing, it'll return 0.
 /// If you haven't loginned, return nil.
 #[defun]
 #[tokio::main]
 pub async fn logout(env: &Env) -> EResult<EValue<'_>> {
-    if loginp().unwrap() {
+    if have_logged().await {
         let api = get_api();
         let result = UserInfo::from_data(api.logout().await.unwrap().data());
         if result.code == 200 {
-            Ok(true.into_lisp(env)?)
+            true.into_lisp(env)
         } else {
-            Ok(0i64.into_lisp(env)?)
+            0i64.into_lisp(env)
         }
     } else {
-        Ok(().into_lisp(env)?)
+        ().into_lisp(env)
     }
 }
 
@@ -500,9 +511,6 @@ pub async fn get_lyrics(env: &Env, sid: i64) -> EResult<EValue<'_>> {
 //     // println!("{:#?}", b);
 //     // let a = get_comment(536622304, 1).await.unwrap();
 //     // println!("{:#?}", a);
-//     // let a = login(.to_string(), .to_string()).await.unwrap_or_default();
-//     // println!("{:#?}", a);
-//     // println!("{:#?}", login_status().await.unwrap());
 //     // let a = recommend_playlists().await.unwrap();
 //     // println!("{:#?}", a);
 //     // let b = user_playlist().await.unwrap();
@@ -511,6 +519,7 @@ pub async fn get_lyrics(env: &Env, sid: i64) -> EResult<EValue<'_>> {
 //     // let a = song_url(536622304).await.unwrap();
 //     // println!("{}", a);
 //     // song_url(10941904111).await;
+//     // get_playlist_songs(6866749290).await;
 // }
 
 /// Get the song's comment by its ID and return it.
@@ -605,4 +614,26 @@ pub async fn song_url(sid: i64) -> EResult<Option<String>> {
         JValue::String(s) => Ok(Some(s.to_string())),
         _ => Ok(None),
     }
+}
+
+#[defun]
+#[tokio::main]
+pub async fn get_playlist_songs(env: &Env, pid: i64) -> EResult<EValue<'_>> {
+    let api = get_api();
+    let songs = PlaylistsInfo::from_data(
+        api.playlist_detail(pid as usize, None)
+            .await
+            .unwrap()
+            .data(),
+    );
+
+    if songs.code != 200 {
+        return ().into_lisp(env);
+    }
+
+    let songs = songs.playlist.get("tracks").unwrap();
+    if songs.as_array().unwrap().len() == 0 {
+        return ().into_lisp(env);
+    }
+    Ok(extract_songs_info(env, songs.to_owned()).unwrap())
 }

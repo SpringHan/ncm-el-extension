@@ -476,24 +476,24 @@ impl NcmApi {
     //     self.client.request(r).await
     // }
 
-    // /// 说明 : 歌单能看到歌单名字, 但看不到具体歌单内容 , 调用此接口 , 传入歌单 id,
-    // /// 可以获取对应歌单内的所有的音乐(未登录状态只能获取不完整的歌单,登录后是完整的)，
-    // /// 但是返回的trackIds是完整的，tracks 则是不完整的，
-    // /// 可拿全部 trackIds 请求一次 song/detail 接口获取所有歌曲的详情
-    // ///
-    // /// required
-    // /// 必选参数 : id : 歌单 id
-    // ///
-    // /// optional
-    // /// 可选参数 : s : 歌单最近的 s 个收藏者,默认为8
-    // pub async fn playlist_detail(&self, id: usize, opt: Option<Value>) -> TResult<ApiResponse> {
-    //     let r = ApiRequestBuilder::post(API_ROUTE["playlist_detail"])
-    //         .set_data(json!({"n": 100000, "s": 8, "id": id}))
-    //         .merge(opt.unwrap_or_default())
-    //         .build();
+    /// 说明 : 歌单能看到歌单名字, 但看不到具体歌单内容 , 调用此接口 , 传入歌单 id,
+    /// 可以获取对应歌单内的所有的音乐(未登录状态只能获取不完整的歌单,登录后是完整的)，
+    /// 但是返回的trackIds是完整的，tracks 则是不完整的，
+    /// 可拿全部 trackIds 请求一次 song/detail 接口获取所有歌曲的详情
+    ///
+    /// required
+    /// 必选参数 : id : 歌单 id
+    ///
+    /// optional
+    /// 可选参数 : s : 歌单最近的 s 个收藏者,默认为8
+    pub async fn playlist_detail(&self, id: usize, opt: Option<Value>) -> TResult<ApiResponse> {
+        let r = ApiRequestBuilder::post(API_ROUTE["playlist_detail"])
+            .set_data(json!({"n": 100000, "s": 8, "id": id}))
+            .merge(opt.unwrap_or_default())
+            .build();
 
-    //     self.client.request(r).await
-    // }
+        self.client.request(r).await
+    }
 
     /// 说明 : 调用此接口 , 可以添加歌曲到歌单或者从歌单删除某首歌曲 ( 需要登录 )
     ///
