@@ -136,6 +136,7 @@ impl ApiRequestBuilder {
         self
     }
 
+    #[allow(unused)]
     pub fn set_ua(mut self, ua: UA) -> Self {
         self.config.ua = ua;
         self
@@ -165,6 +166,7 @@ impl ApiRequestBuilder {
         self
     }
 
+    #[allow(unused)]
     pub fn set_real_ip(mut self, real_ip: &str) -> Self {
         self.config.real_ip = Some(String::from(real_ip));
         self
