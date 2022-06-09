@@ -291,8 +291,12 @@ pub async fn update_playlist_order(pid: i64, sids: EValue<'_>) -> EResult<bool> 
         .unwrap()
         .deserialize_to_implict();
     if result.code == 200 {
+        sids.env
+            .message("[Netease-Cloud-Music]: Updated playlist order successfully!")?;
         Ok(true)
     } else {
+        sids.env
+            .message("[Netease-Cloud-Music]: Failed to updated playlist order!")?;
         Ok(false)
     }
 }
@@ -465,7 +469,10 @@ pub async fn user_playlist(env: &Env, uid: i64) -> EResult<EValue<'_>> {
     let playlists = result.playlist.as_array().unwrap();
 
     if playlists.len() == 0 {
-        Ok(().into_lisp(env)?)
+        env.call(
+            "netease-cloud-music-error",
+            ["The uid cannot be found!".to_string().into_lisp(env)?],
+        )
     } else {
         // NOTE: Maybe now I'll not use `more` to know whether there're other results.
         Ok(
@@ -522,6 +529,7 @@ pub async fn get_lyrics(env: &Env, sid: i64) -> EResult<EValue<'_>> {
 //     // get_playlist_songs(6866749290).await;
 // }
 
+// TODO: Need to consider to handle the content with netease-cloud-music--throw-mass-suffix function
 /// Get the song's comment by its ID and return it.
 /// Warning: This function doesn't have side-effect.
 #[defun]
@@ -561,23 +569,24 @@ pub async fn get_comment(env: &Env, sid: i64, page_no: i64) -> EResult<EValue<'_
 /// When CID is non-nil, means to reply comment with cid(its id).
 #[defun]
 #[tokio::main]
-pub async fn create_comment(sid: i64, content: String, cid: i64) -> EResult<bool> {
+pub async fn create_comment(sid: i64, content: String, cid: Option<i64>) -> EResult<bool> {
     let api = get_api();
-    let result = if cid > 0 {
-        api.comment_create(sid as usize, ncmapi::ResourceType::Song, &content)
+    let result = match cid {
+        None => api
+            .comment_create(sid as usize, ncmapi::ResourceType::Song, &content)
             .await
             .unwrap()
-            .deserialize_to_implict()
-    } else {
-        api.comment_re(
-            sid as usize,
-            ncmapi::ResourceType::Song,
-            cid as usize,
-            &content,
-        )
-        .await
-        .unwrap()
-        .deserialize_to_implict()
+            .deserialize_to_implict(),
+        Some(a) => api
+            .comment_re(
+                sid as usize,
+                ncmapi::ResourceType::Song,
+                a as usize,
+                &content,
+            )
+            .await
+            .unwrap()
+            .deserialize_to_implict(),
     };
 
     if result.code == 200 {
@@ -628,7 +637,10 @@ pub async fn get_playlist_songs(env: &Env, pid: i64) -> EResult<EValue<'_>> {
     );
 
     if songs.code != 200 {
-        return ().into_lisp(env);
+        return env.call(
+            "netease-cloud-music-error",
+            ["The pid can not fount!".to_string().into_lisp(env)?],
+        );
     }
 
     let songs = songs.playlist.get("tracks").unwrap();
